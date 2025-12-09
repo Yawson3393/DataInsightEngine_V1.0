@@ -1,0 +1,44 @@
+battery_analysis/
+├─ backend/
+│  ├─ app/
+│  │  ├─ __init__.py
+│  │  ├─ main.py
+│  │  ├─ config.py
+│  │  ├─ api/
+│  │  │  ├─ __init__.py
+│  │  │  ├─ files.py
+│  │  │  ├─ tasks.py
+│  │  │  ├─ analysis.py
+│  │  ├─ ingest/
+│  │  │  ├─ __init__.py
+│  │  │  ├─ tar_stream.py
+│  │  │  └─ router.py
+│  │  ├─ parsers/
+│  │  │  ├─ __init__.py
+│  │  │  ├─ summary_parser.py
+│  │  │  ├─ batvol_parser.py
+│  │  │  └─ battemp_parser.py
+│  │  ├─ aligner/
+│  │  │  └─ timeline_aligner.py
+│  │  ├─ modelbuilder/
+│  │  │  └─ hierarchy.py
+│  │  ├─ analysis/
+│  │  │  └─ cell_analysis.py
+│  │  ├─ storage/
+│  │  │  └─ parquet_store.py
+│  │  ├─ tasks/
+│  │  │  ├─ __init__.py
+│  │  │  ├─ pipeline.py
+│  │  │  ├─ worker.py
+│  │  │  └─ progress.py
+│  │  └─ utils/
+│  │     ├─ __init__.py
+│  │     └─ logger.py
+│  ├─ Dockerfile
+│  └─ requirements.txt
+├─ frontend/
+│  ├─ index.html
+│  ├─ static/
+│  │  └─ main.js
+├─ data/       # 放 tar.gz 文件
+└─ README.md
