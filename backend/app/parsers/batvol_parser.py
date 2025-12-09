@@ -1,21 +1,35 @@
-# backend/app/parsers/batvol_parser.py
-import pandas as pd
-import numpy as np
-from ..config import settings
+"""
+Parser for cell voltage CSV (e.g. rack1batVol_2024-10-01)
 
-def parse(fileobj, chunksize=None):
-    txt = fileobj
-    try:
-        it = pd.read_csv(txt, chunksize=settings.CHUNK_ROWS)
-    except Exception:
-        txt.seek(0)
-        it = pd.read_csv(txt, chunksize=settings.CHUNK_ROWS)
-    for chunk in it:
-        chunk.columns = [c.strip() for c in chunk.columns]
-        # convert numeric V* columns
-        vcols = [c for c in chunk.columns if c.startswith('V')]
-        for c in vcols:
-            chunk[c] = pd.to_numeric(chunk[c], errors='coerce')
-        if 'time' in chunk.columns:
-            chunk['time'] = pd.to_datetime(chunk['time'].astype(str).str.strip(), format=settings.TIME_FORMAT, errors='coerce')
-        yield chunk
+Columns:
+  time, V1, V2, V3, ... (224 cells)
+Unit: millivolt → volt
+"""
+
+from typing import IO, Dict
+from .common import iter_csv, fast_float, parse_time
+
+
+def parse_batvol_csv(fileobj: IO) -> Dict:
+
+    time_list = []
+    cell_table = {}   # key: V1, V2, ...
+
+    for row in iter_csv(fileobj):
+        ts = parse_time(row.get("time"))
+        if ts is None:
+            continue
+
+        time_list.append(ts)
+
+        # parse all Vxxx
+        for key, val in row.items():
+            if key.lower().startswith("v"):
+                if key not in cell_table:
+                    cell_table[key] = []
+                cell_table[key].append(fast_float(val) / 1000.0 if val else None)
+
+    return {
+        "time": time_list,
+        "voltage": cell_table,   # dict: {"V1": [..], "V2":[..]}
+    }

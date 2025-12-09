@@ -1,4 +1,4 @@
-// frontend/static/main.js
+// frontend/src/main.js
 async function listFiles(){
   const res = await fetch('/api/files/list');
   const j = await res.json();

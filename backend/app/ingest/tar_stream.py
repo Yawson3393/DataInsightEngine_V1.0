@@ -1,26 +1,42 @@
-# backend/app/ingest/tar_stream.py
-import tarfile, io
-from typing import Iterator, Tuple
-from ..utils.logger import logger
+"""
+Streaming utilities for reading .tar.gz files WITHOUT extraction.
 
-def iter_members(tar_path: str):
-    """Yield (member_name, fileobj) for regular files inside tar.gz"""
-    with tarfile.open(tar_path, "r:gz") as tar:
-        for member in tar.getmembers():
-            if not member.isfile():
-                continue
-            f = tar.extractfile(member)
-            if f is None:
-                continue
-            yield member.name, f
+stream_tar_members(tar_path):
+    Yields (member_name, fileobj) for all files inside tar.gz.
 
-def find_members_by_pattern(tar_path: str, patterns: list[str]):
-    """Return dict pattern->list of member names found"""
-    found = {p: [] for p in patterns}
-    with tarfile.open(tar_path, "r:gz") as tar:
-        for m in tar.getmembers():
-            name = m.name.lower()
-            for p in patterns:
-                if p.lower() in name and name.endswith('.csv'):
-                    found[p].append(m.name)
-    return found
+This is optimized for:
+- low memory footprint
+- sequential processing
+"""
+
+import tarfile
+from pathlib import Path
+from typing import Generator, Tuple, IO
+
+
+def stream_tar_members(tar_path: str) -> Generator[Tuple[str, IO], None, None]:
+    """
+    Stream members inside tar.gz file.
+    Parameters
+    ----------
+    tar_path: str
+        path to tar.gz
+
+    Yields
+    ------
+    (member_name : str, fileobj : IO)
+    """
+
+    tar_path = Path(tar_path)
+
+    if not tar_path.exists():
+        raise FileNotFoundError(f"tar.gz not found: {tar_path}")
+
+    # r:gz = gzip streaming reader
+    with tarfile.open(tar_path, "r:gz") as tf:
+        for member in tf.getmembers():
+            if member.isfile():
+                fileobj = tf.extractfile(member)
+                if fileobj is None:
+                    continue
+                yield member.name, fileobj

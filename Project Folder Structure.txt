@@ -1,44 +1,94 @@
 battery_analysis/
 ├─ backend/
 │  ├─ app/
-│  │  ├─ __init__.py
-│  │  ├─ main.py
-│  │  ├─ config.py
+│  │  ├─ main.py                      # FastAPI 启动点 + 静态资源挂载
+│  │  ├─ config.py                    # 全局配置与运行时参数（SEE: env-first）
+│  │  ├─ logging_cfg.py               # loguru / structured logging 配置
 │  │  ├─ api/
 │  │  │  ├─ __init__.py
-│  │  │  ├─ files.py
-│  │  │  ├─ tasks.py
-│  │  │  ├─ analysis.py
-│  │  ├─ ingest/
+│  │  │  ├─ files.py                  # /api/files - 列表/元数据
+│  │  │  ├─ jobs.py                   # /api/jobs - 启动/取消/状态
+│  │  │  ├─ results.py                # /api/results - 下载/概览
+│  │  │  └─ health.py                 # 健康检查、metrics
+│  │  ├─ ingest/                      # 读取层（Streaming, 不解压）
 │  │  │  ├─ __init__.py
-│  │  │  ├─ tar_stream.py
-│  │  │  └─ router.py
-│  │  ├─ parsers/
+│  │  │  ├─ tar_stream.py             # 遍历 tar.gz 内成员流（yield member fileobj）
+│  │  │  ├─ file_indexer.py           # 索引 /data 下文件并维护元信息
+│  │  │  └─ router.py                 # file→parser 路由（基于名称/模式）
+│  │  ├─ parsers/                     # 流式 CSV 解析器（按文件类型）
 │  │  │  ├─ __init__.py
+│  │  │  ├─ common.py                 # 共用工具（time parse, cast）
 │  │  │  ├─ summary_parser.py
+│  │  │  ├─ rack_summary_parser.py
 │  │  │  ├─ batvol_parser.py
 │  │  │  └─ battemp_parser.py
-│  │  ├─ aligner/
-│  │  │  └─ timeline_aligner.py
-│  │  ├─ modelbuilder/
-│  │  │  └─ hierarchy.py
-│  │  ├─ analysis/
-│  │  │  └─ cell_analysis.py
-│  │  ├─ storage/
-│  │  │  └─ parquet_store.py
-│  │  ├─ tasks/
+│  │  ├─ pipeline/                     # 多进程事件流 pipeline 核心
 │  │  │  ├─ __init__.py
-│  │  │  ├─ pipeline.py
-│  │  │  ├─ worker.py
-│  │  │  └─ progress.py
+│  │  │  ├─ dispatcher.py              # 任务分割、stage 管理（ingest→align→analyze）
+│  │  │  ├─ worker_pool.py             # 多进程池控制、worker heartbeat
+│  │  │  ├─ worker_process.py          # worker 子进程入口（处理单个 CSV / 阶段）
+│  │  │  └─ resource_ctl.py            # 内存/RSS 监控与回收策略
+│  │  ├─ aligner/                      # 时间对齐、插值（网格化）
+│  │  │  ├─ timeline_aligner.py
+│  │  │  └─ interpolation.py
+│  │  ├─ model/                        # 物理映射（堆→簇→模组→单体）
+│  │  │  ├─ hierarchy.py
+│  │  │  ├─ voltage_mapper.py
+│  │  │  └─ temp_mapper.py
+│  │  ├─ analysis/                     # 插件式分析引擎（可动态注册）
+│  │  │  ├─ __init__.py
+│  │  │  ├─ registry.py                # 分析插件注册器（entry-points like）
+│  │  │  ├─ base.py                    # 分析插件基类（接口定义）
+│  │  │  ├─ cell_features.py
+│  │  │  ├─ anomaly_adapters.py
+│  │  │  └─ soh_proxies.py
+│  │  ├─ storage/                      # 持久化层（列式、元数据、缓存）
+│  │  │  ├─ parquet_store.py
+│  │  │  ├─ sqlite_meta.py
+│  │  │  └─ cache.py                   # LRU cache / temp store for UI
+│  │  ├─ tasks/                        # 任务管理与进度（任务元信息在 sqlite）
+│  │  │  ├─ task_manager.py	# SQLite 管理 + 查询 + 更新 + 生命周期
+│  │  │  ├─ job.py			# Job 模型（状态、时间戳、路径、阶段）
+│  │  │  └─ progress.py		# 任务进度（发给 WebSocket）
 │  │  └─ utils/
-│  │     ├─ __init__.py
-│  │     └─ logger.py
-│  ├─ Dockerfile
-│  └─ requirements.txt
+│  │     ├─ timeutil.py
+│  │     ├─ stats.py
+│  │     └─ io_helpers.py              # chunk helpers, welford aggregators
+│  ├─ requirements.txt
+│  └─ Dockerfile
 ├─ frontend/
-│  ├─ index.html
-│  ├─ static/
-│  │  └─ main.js
-├─ data/       # 放 tar.gz 文件
+│  ├─ src/
+│  │  ├─ pages/
+│  │  │  ├─ FileSelectPage.vue
+│  │  │  ├─ TaskProgressPage.vue
+│  │  │  ├─ OverviewPage.vue
+│  │  │  ├─ RackDetailPage.vue
+│  │  │  └─ CellDetailPage.vue
+│  │  ├─ components/
+│  │  │  ├─ Heatmap.vue
+│  │  │  ├─ TimeseriesChart.vue
+│  │  │  ├─ BoxPlot.vue
+│  │  │  └─ LogViewer.vue
+│  │  ├─ api/
+│  │  │  └─ api.ts
+│  │  ├─ store/
+│  │  │  └─ index.ts
+│  │  └─ utils/
+│  ├─ package.json
+│  └─ vite.config.ts
+├─ docs/
+│  ├─ architecture.md
+│  ├─ plugin_api.md                     # 插件接口说明（如何增加算法）
+│  └─ runbook.md                        # 运行与故障排查手册
+├─ scripts/
+│  ├─ run_local.sh
+│  └─ bench_memory.py                   # 内存/性能基准小工具
+├─ tests/
+│  ├─ unit/
+│  └─ integration/
+├─ .github/
+│  └─ workflows/
+│     └─ ci.yml
+├─ docker-compose.yml
+├─ pyproject.toml
 └─ README.md

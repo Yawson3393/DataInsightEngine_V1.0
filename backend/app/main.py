@@ -1,37 +1,97 @@
-# backend/app/main.py
-import os, asyncio
-from fastapi import FastAPI, WebSocket
-from fastapi.staticfiles import StaticFiles
+"""
+Main API Entrypoint
+- Initializes FastAPI application
+- Configures logging
+- Registers API routers
+- Creates WebSocket endpoints for real-time task progress
+- Loads analysis plugins dynamically
+"""
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from .api import files, tasks, analysis
-from .utils.logger import logger
-from .tasks.progress import ProgressManager
+from fastapi.staticfiles import StaticFiles
 
-app = FastAPI(title="BatteryInsightEngine", version="0.1")
+from .config import settings
+from .logging_cfg import setup_logging
+from .api import files, jobs, results, health
+from .tasks.progress import progress_manager
+from .analysis.registry import load_plugins
 
-# CORS
-app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
-)
+import uvicorn
 
-# include routers
-app.include_router(files.router, prefix="/api/files", tags=["Files"])
-app.include_router(tasks.router, prefix="/api/tasks", tags=["Tasks"])
-app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"])
 
-# mount frontend (static)
-if os.path.isdir("frontend"):
-    app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+def create_app() -> FastAPI:
+    """
+    Create and configure the FastAPI application.
+    """
+    # ------------------------------------------------
+    # Logging (Loguru, JSON optional)
+    # ------------------------------------------------
+    setup_logging()
 
-# websocket progress
-@app.websocket("/ws/progress")
-async def ws_progress(ws: WebSocket):
-    await ws.accept()
-    pm = ProgressManager()
-    try:
-        while True:
-            snapshot = pm.get_progress_snapshot()
-            await ws.send_json(snapshot)
-            await asyncio.sleep(0.5)
-    except Exception:
-        await ws.close()
+    app = FastAPI(
+        title="Battery Analysis Engine",
+        description="Streaming Tar.gz Pipeline → Analysis → Parquet → Web UI",
+        version="1.0.0",
+    )
+
+    # ------------------------------------------------
+    # CORS Setup
+    # ------------------------------------------------
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ALLOW_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # ------------------------------------------------
+    # Load analysis plugins (dynamic)
+    # ------------------------------------------------
+    load_plugins()  # Automatically load plugins from /plugins or entry_points
+
+    # ------------------------------------------------
+    # API Routers
+    # ------------------------------------------------
+    app.include_router(files.router, prefix="/api/files", tags=["Files"])
+    app.include_router(jobs.router, prefix="/api/jobs", tags=["Tasks"])
+    app.include_router(results.router, prefix="/api/results", tags=["Results"])
+    app.include_router(health.router, prefix="/api/health", tags=["Health"])
+
+    # ------------------------------------------------
+    # WebSocket: Real-time progress updates
+    # ------------------------------------------------
+    @app.websocket("/ws/progress/{task_id}")
+    async def progress_ws(websocket: WebSocket, task_id: str):
+        await websocket.accept()
+        progress_manager.connect(task_id, websocket)
+
+        try:
+            while True:
+                # WebSocket will automatically receive pushes from manager
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            progress_manager.disconnect(task_id, websocket)
+
+    # ------------------------------------------------
+    # (Optional) Serve frontend build
+    # ------------------------------------------------
+    if settings.SERVE_FRONTEND and settings.FRONTEND_DIST.exists():
+        app.mount("/", StaticFiles(directory=settings.FRONTEND_DIST, html=True), name="frontend")
+
+    return app
+
+
+app = create_app()
+
+
+# For local development
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=True,
+        workers=1,
+    )

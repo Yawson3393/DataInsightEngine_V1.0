@@ -1,19 +1,34 @@
-# backend/app/parsers/battemp_parser.py
-import pandas as pd
-from ..config import settings
+"""
+Parser for cell temperature CSV (e.g. rack1batTemp_2024-10-01)
 
-def parse(fileobj, chunksize=None):
-    txt = fileobj
-    try:
-        it = pd.read_csv(txt, chunksize=settings.CHUNK_ROWS)
-    except Exception:
-        txt.seek(0)
-        it = pd.read_csv(txt, chunksize=settings.CHUNK_ROWS)
-    for chunk in it:
-        chunk.columns = [c.strip() for c in chunk.columns]
-        tcols = [c for c in chunk.columns if c.startswith('T')]
-        for c in tcols:
-            chunk[c] = pd.to_numeric(chunk[c], errors='coerce')
-        if 'time' in chunk.columns:
-            chunk['time'] = pd.to_datetime(chunk['time'].astype(str).str.strip(), format=settings.TIME_FORMAT, errors='coerce')
-        yield chunk
+Columns:
+  time, T1, T2, T3, ... (140 temperature sensors)
+Unit: 0.1°C → °C
+"""
+
+from typing import IO, Dict
+from .common import iter_csv, fast_float, parse_time
+
+
+def parse_battemp_csv(fileobj: IO) -> Dict:
+
+    time_list = []
+    temp_table = {}   # {"T1": [...], "T2": [...]}
+
+    for row in iter_csv(fileobj):
+        ts = parse_time(row.get("time"))
+        if ts is None:
+            continue
+
+        time_list.append(ts)
+
+        for key, val in row.items():
+            if key.lower().startswith("t"):
+                if key not in temp_table:
+                    temp_table[key] = []
+                temp_table[key].append(fast_float(val) * 0.1 if val else None)
+
+    return {
+        "time": time_list,
+        "temp": temp_table,
+    }

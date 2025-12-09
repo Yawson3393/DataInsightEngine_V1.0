@@ -1,24 +1,42 @@
-# backend/app/parsers/summary_parser.py
-import pandas as pd
-from typing import Dict, Any
-from ..config import settings
+"""
+Parser for bank-level summary CSV (bank0summary_2024-10-01)
+"""
 
-def parse(fileobj, chunksize=None):
-    """
-    Parse summary CSV stream and yield cleaned chunks as DataFrame
-    """
-    # fileobj is binary file-like from tar.extractfile
-    txt = fileobj
-    # pandas will accept binary, but we wrap to text if necessary
-    try:
-        df_iter = pd.read_csv(txt, chunksize=settings.CHUNK_ROWS)
-    except Exception:
-        txt.seek(0)
-        df_iter = pd.read_csv(txt, chunksize=settings.CHUNK_ROWS)
-    for chunk in df_iter:
-        # basic clean: strip column names
-        chunk.columns = [c.strip() for c in chunk.columns]
-        # convert time column
-        if 'time' in chunk.columns:
-            chunk['time'] = pd.to_datetime(chunk['time'].astype(str).str.strip(), format=settings.TIME_FORMAT, errors='coerce')
-        yield chunk
+from typing import IO, Dict
+from .common import iter_csv, parse_time, fast_float
+
+
+def parse_summary_csv(fileobj: IO) -> Dict:
+    time_list = []
+    volt_list = []
+    curr_list = []
+    soc_list = []
+    soh_list = []
+
+    for row in iter_csv(fileobj):
+
+        ts = parse_time(row.get("time"))
+        if ts is None:
+            continue
+
+        total_vol = fast_float(row.get("totalVol"))
+        total_cur = fast_float(row.get("totalCur"))
+        soc = fast_float(row.get("soc"))
+        soh = fast_float(row.get("soh"))
+
+        if total_vol is None:
+            continue
+
+        time_list.append(ts)
+        volt_list.append(total_vol * 0.1)
+        curr_list.append(total_cur * 0.1 if total_cur is not None else None)
+        soc_list.append(soc * 0.1 if soc is not None else None)
+        soh_list.append(soh * 0.1 if soh is not None else None)
+
+    return {
+        "time": time_list,
+        "totalVol": volt_list,
+        "totalCur": curr_list,
+        "soc": soc_list,
+        "soh": soh_list,
+    }
