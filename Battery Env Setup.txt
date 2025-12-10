@@ -127,3 +127,14 @@ battery_analysis/
 - Docker uses Python 3.11-slim for minimal size.
 - GitHub CI performs linting & unit tests.
 - You can request production mode (gunicorn, multi-worker, nginx).
+
+cd D:\14DataAnalysis\DataInsightEngine_V1.0
+uvicorn backend.core.main:app --host 127.0.0.1 --port 8001
+
+
+
+import sys
+sys.path.insert(0, r"D:\14DataAnalysis\DataInsightEngine_V1.0")
+import uvicorn
+uvicorn.run("backend.core.main:app", host="127.0.0.1", port=8001)
+

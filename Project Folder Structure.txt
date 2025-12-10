@@ -41,11 +41,13 @@ battery_analysis/
 │  │  │  ├─ base.py                    # 分析插件基类（接口定义）
 │  │  │  ├─ cell_features.py
 │  │  │  ├─ anomaly_adapters.py
+│  │  │  ├─ compute_features.py
 │  │  │  └─ soh_proxies.py
 │  │  ├─ storage/                      # 持久化层（列式、元数据、缓存）
-│  │  │  ├─ parquet_store.py
-│  │  │  ├─ sqlite_meta.py
-│  │  │  └─ cache.py                   # LRU cache / temp store for UI
+│  │  │  ├─ result_store.py            # 最终任务输出、分析结果、报告结果、UI 需要的聚合数据
+│  │  │  ├─ parquet_store.py           # 列式数据存储（原始/对齐后数据）
+│  │  │  ├─ sqlite_meta.py             # 拓扑和统计元数据存储
+│  │  │  └─ cache.py                   # LRU cache / temp store for UI 前端快速显示的数据缓存（短期）
 │  │  ├─ tasks/                        # 任务管理与进度（任务元信息在 sqlite）
 │  │  │  ├─ task_manager.py	# SQLite 管理 + 查询 + 更新 + 生命周期
 │  │  │  ├─ job.py			# Job 模型（状态、时间戳、路径、阶段）
@@ -57,25 +59,27 @@ battery_analysis/
 │  ├─ requirements.txt
 │  └─ Dockerfile
 ├─ frontend/
-│  ├─ src/
-│  │  ├─ pages/
-│  │  │  ├─ FileSelectPage.vue
-│  │  │  ├─ TaskProgressPage.vue
-│  │  │  ├─ OverviewPage.vue
-│  │  │  ├─ RackDetailPage.vue
-│  │  │  └─ CellDetailPage.vue
-│  │  ├─ components/
-│  │  │  ├─ Heatmap.vue
-│  │  │  ├─ TimeseriesChart.vue
-│  │  │  ├─ BoxPlot.vue
-│  │  │  └─ LogViewer.vue
-│  │  ├─ api/
-│  │  │  └─ api.ts
-│  │  ├─ store/
-│  │  │  └─ index.ts
-│  │  └─ utils/
 │  ├─ package.json
-│  └─ vite.config.ts
+│  ├─ vite.config.ts
+│  ├─ tsconfig.json
+│  ├─ index.html
+│  ├─ src/
+│  │  ├─ main.ts
+│  │  ├─ App.vue
+│  │  ├─ router.ts
+│  │  ├─ api.ts
+│  │  ├─ useStore.ts
+│  │  ├─ utils.ts
+│  │  ├─ views/
+│  │  │   ├─ FileSelect.vue
+│  │  │   ├─ Progress.vue
+│  │  │   ├─ Overview.vue
+│  │  │   ├─ RackDetail.vue
+│  │  │   ├─ CellDetail.vue
+│  │  │   ├─ Heatmap.vue
+│  │  │   ├─ TimeseriesChart.vue
+│  │  │   ├─ BoxPlot.vue
+│  │  │   └─ LogViewer.vue
 ├─ docs/
 │  ├─ architecture.md
 │  ├─ plugin_api.md                     # 插件接口说明（如何增加算法）
